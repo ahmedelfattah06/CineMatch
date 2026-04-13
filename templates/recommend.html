@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Recommendations — CineMatch{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1 class="page-title">Get Recommendations</h1>
+        <p class="page-subtitle">Select 3–5 movies you love, and our algorithms will find your next favorites</p>
+
+        <!-- Movie Selector -->
+        <div class="recommend-panel">
+            <div class="select-section">
+                <h2>Step 1: Search &amp; Select Movies You Like</h2>
+                <div class="movie-search-wrap">
+                    <input type="text" id="movieSearchInput" placeholder="Search movies..." autocomplete="off">
+                    <div id="movieDropdown" class="movie-dropdown"></div>
+                </div>
+                <div class="selected-movies" id="selectedMovies">
+                    <p class="select-hint">No movies selected yet. Search above to add movies.</p>
+                </div>
+            </div>
+            <div class="recommend-actions">
+                <button onclick="getRecommendations()" class="btn btn-primary btn-lg" id="recommendBtn" disabled>
+                    Get Recommendations
+                </button>
+                <p class="select-count" id="selectCount">Select 3–5 movies</p>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="recommendResults" style="display:none">
+            <div class="results-row">
+                <!-- Content-Based -->
+                <div class="results-column">
+                    <div class="column-header">
+                        <h2>Content-Based</h2>
+                        
+                    </div>
+                    <div id="contentBasedList" class="rec-list"></div>
+                </div>
+                <!-- Collaborative-Style -->
+                <div class="results-column">
+                    <div class="column-header">
+                        <h2>Collaborative-Style</h2>
+                        
+                    </div>
+                    <div id="collaborativeList" class="rec-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// All movies for search
+const allMovies = {{ movies_list | tojson }};
+let selectedMovies = {};
+
+const searchInput = document.getElementById('movieSearchInput');
+const dropdown = document.getElementById('movieDropdown');
+
+searchInput.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+    const matches = allMovies
+        .filter(m => m.name.toLowerCase().includes(q) && !selectedMovies[m.movie_id])
+        .slice(0, 10);
+    if (!matches.length) { dropdown.style.display = 'none'; return; }
+    dropdown.innerHTML = matches.map(m =>
+        `<div class="dropdown-item" onclick="selectMovie(${m.movie_id})">
+            <span class="di-name">${m.name}</span>
+            <span class="di-meta">${m.genre} · ${m.year}</span>
+        </div>`
+    ).join('');
+    dropdown.style.display = 'block';
+});
+
+document.addEventListener('click', e => {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+function selectMovie(movieId) {
+    const movie = allMovies.find(m => m.movie_id === movieId);
+    if (!movie || selectedMovies[movieId]) return;
+    selectedMovies[movieId] = movie;
+    dropdown.style.display = 'none';
+    searchInput.value = '';
+    renderSelected();
+}
+
+function removeMovie(movieId) {
+    delete selectedMovies[movieId];
+    renderSelected();
+}
+
+function renderSelected() {
+    const container = document.getElementById('selectedMovies');
+    const count = Object.keys(selectedMovies).length;
+    document.getElementById('selectCount').textContent = count < 3
+        ? `Select ${3 - count} more movie${3 - count !== 1 ? 's' : ''}`
+        : `${count} movie${count !== 1 ? 's' : ''} selected`;
+    document.getElementById('recommendBtn').disabled = count < 3;
+    if (!count) {
+        container.innerHTML = '<p class="select-hint">No movies selected yet. Search above to add movies.</p>';
+        return;
+    }
+    container.innerHTML = Object.values(selectedMovies).map(m => `
+        <div class="selected-movie-tag">
+            <span>${m.name} <span class="sm-year">(${m.year})</span></span>
+            <button onclick="removeMovie(${m.movie_id})" class="remove-btn">✕</button>
+        </div>
+    `).join('');
+}
+
+function getRecommendations() {
+    const ids = Object.keys(selectedMovies).map(Number);
+    if (ids.length < 3) return;
+    document.getElementById('recommendBtn').textContent = '⏳ Finding recommendations...';
+    document.getElementById('recommendBtn').disabled = true;
+    fetch('/data/recommend', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({movie_ids: ids})
+    }).then(r => r.json()).then(data => {
+        document.getElementById('recommendBtn').textContent = '🎬 Get Recommendations';
+        document.getElementById('recommendBtn').disabled = false;
+        renderResults(data);
+    });
+}
+
+function renderResults(data) {
+    document.getElementById('recommendResults').style.display = 'block';
+    renderRecList('contentBasedList', data.content_based);
+    renderRecList('collaborativeList', data.collaborative);
+    document.getElementById('recommendResults').scrollIntoView({behavior: 'smooth'});
+}
+
+function renderRecList(containerId, movies) {
+    const el = document.getElementById(containerId);
+    if (!movies || !movies.length) {
+        el.innerHTML = '<div class="empty-state">No recommendations found.</div>';
+        return;
+    }
+    el.innerHTML = movies.map(m => `
+        <a href="/movie/${m.movie_id}" class="rec-card">
+            <div class="rec-card-top">
+                <span class="score-badge ${m.score >= 8 ? 'score-green' : m.score >= 6 ? 'score-yellow' : 'score-red'}">
+                    ⭐ ${m.score}
+                </span>
+                <span class="class-badge class-${m.classification.toLowerCase()}">${m.classification}</span>
+            </div>
+            <div class="rec-card-body">
+                <div class="rec-name">${m.name}</div>
+                <div class="rec-meta">${m.genre} · ${m.year}</div>
+                <div class="rec-reason">${m.reason || ''}</div>
+            </div>
+        </a>
+    `).join('');
+}
+</script>
+{% endblock %}

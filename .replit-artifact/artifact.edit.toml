@@ -1,0 +1,21 @@
+kind = "web"
+  previewPath = "/"
+  title = "CineMatch"
+  version = "1.0.0"
+
+  [[services]]
+  localPort = 3000
+  name = "web"
+  paths = ["/"]
+
+  [services.development]
+  run = "cd artifacts/cinematch && /home/runner/workspace/.pythonlibs/bin/python app.py"
+
+  [services.production]
+
+  [services.production.run]
+  args = ["/home/runner/workspace/.pythonlibs/bin/python", "artifacts/cinematch/app.py"]
+
+  [services.production.run.env]
+  PORT = "3000"
+  

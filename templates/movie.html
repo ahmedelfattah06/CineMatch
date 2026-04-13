@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}{{ movie.name }} — CineMatch{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <a href="javascript:history.back()" class="back-link">← Back</a>
+
+        <!-- Movie Hero -->
+        <div class="movie-hero">
+            <div class="movie-hero-info">
+                <div class="movie-badges">
+                    <span class="score-badge-lg {% if movie.score >= 8 %}score-green{% elif movie.score >= 6 %}score-yellow{% else %}score-red{% endif %}">
+                        ⭐ {{ movie.score }}
+                    </span>
+                    <span class="class-badge class-{{ movie.classification | lower }}">{{ movie.classification }}</span>
+                    <span class="rating-badge">{{ movie.rating }}</span>
+                </div>
+                <h1 class="movie-title">{{ movie.name }}</h1>
+                <div class="movie-meta-row">
+                    <span class="meta-item genre-tag">{{ movie.genre }}</span>
+                    <span class="meta-item">{{ movie.year }}</span>
+                    {% if movie.runtime %}<span class="meta-item">⏱ {{ movie.runtime }} min</span>{% endif %}
+                    {% if movie.country %}<span class="meta-item">🌍 {{ movie.country }}</span>{% endif %}
+                </div>
+
+                <!-- Auto Summary Card -->
+                <div class="movie-summary-card">
+                    <div class="summary-header">
+                        <span>🎬</span>
+                        <span class="summary-label">About this film</span>
+                    </div>
+                    <p class="summary-text">{{ summary }}</p>
+                </div>
+
+                <!-- Details Grid -->
+                <div class="movie-details-grid">
+                    {% if movie.director %}
+                    <div class="detail-item">
+                        <span class="detail-label">Director</span>
+                        <span class="detail-value">{{ movie.director }}</span>
+                    </div>
+                    {% endif %}
+                    {% if movie.writer %}
+                    <div class="detail-item">
+                        <span class="detail-label">Writer</span>
+                        <span class="detail-value">{{ movie.writer }}</span>
+                    </div>
+                    {% endif %}
+                    {% if movie.star %}
+                    <div class="detail-item">
+                        <span class="detail-label">Stars</span>
+                        <span class="detail-value">{{ movie.star }}</span>
+                    </div>
+                    {% endif %}
+                    {% if movie.company %}
+                    <div class="detail-item">
+                        <span class="detail-label">Studio</span>
+                        <span class="detail-value">{{ movie.company }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="detail-item">
+                        <span class="detail-label">IMDb Score</span>
+                        <span class="detail-value accent">{{ movie.score }} / 10</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Weighted Score</span>
+                        <span class="detail-value">{{ movie.weighted_score }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Votes</span>
+                        <span class="detail-value">{{ "{:,}".format(movie.votes) }}</span>
+                    </div>
+                    {% if movie.budget %}
+                    <div class="detail-item">
+                        <span class="detail-label">Budget</span>
+                        <span class="detail-value">${{ "{:,}".format(movie.budget) }}</span>
+                    </div>
+                    {% endif %}
+                    {% if movie.gross %}
+                    <div class="detail-item">
+                        <span class="detail-label">Box Office</span>
+                        <span class="detail-value">${{ "{:,}".format(movie.gross) }}</span>
+                    </div>
+                    {% endif %}
+                    {% if movie.released %}
+                    <div class="detail-item">
+                        <span class="detail-label">Released</span>
+                        <span class="detail-value">{{ movie.released }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons" id="actionButtons">
+                    {% if username %}
+                    <button onclick="toggleFavorite({{ movie.movie_id }})"
+                        class="btn {% if in_favorites %}btn-gold active{% else %}btn-outline{% endif %}"
+                        id="favBtn">
+                        {% if in_favorites %}★ In Favorites{% else %}☆ Add to Favorites{% endif %}
+                    </button>
+                    <button onclick="toggleWatchlist({{ movie.movie_id }})"
+                        class="btn {% if in_watchlist %}btn-primary active{% else %}btn-outline{% endif %}"
+                        id="watchBtn">
+                        {% if in_watchlist %}✓ In Watchlist{% else %}+ Add to Watchlist{% endif %}
+                    </button>
+                    {% else %}
+                    <div class="login-prompt">
+                        <a href="/login" class="btn btn-primary">Login to Save</a>
+                        <a href="/register" class="btn btn-outline">Create Account</a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Rating Widget -->
+                {% if username %}
+                <div class="rating-widget">
+                    <div class="rating-widget-title">⭐ Rate this movie</div>
+                    <div class="star-rating" id="starRating">
+                        {% for i in range(1, 11) %}
+                        <button class="star-btn {% if user_rating and i <= user_rating %}active{% endif %}"
+                            onclick="rateMovie({{ i }})" data-val="{{ i }}">★</button>
+                        {% endfor %}
+                    </div>
+                    <div class="rating-feedback" id="ratingFeedback">
+                        {% if user_rating %}
+                        <span class="saved">Your rating: {{ user_rating }}/10</span>
+                        {% else %}
+                        Click a star to rate
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Similar Movies -->
+        {% if similar %}
+        <div class="sub-section">
+            <h2 class="section-title">
+                Similar Movies
+            </h2>
+            <div class="movie-grid">
+                {% for m in similar %}
+                <a href="/movie/{{ m.movie_id }}" class="movie-card">
+                    <div class="card-top">
+                        <span class="score-badge {% if m.score >= 8 %}score-green{% elif m.score >= 6 %}score-yellow{% else %}score-red{% endif %}">
+                            ⭐ {{ m.score }}
+                        </span>
+                        <span class="class-badge class-{{ m.classification | lower }}">{{ m.classification }}</span>
+                    </div>
+                    <div class="card-body">
+                        <h3 class="card-title">{{ m.name }}</h3>
+                        <div class="card-meta">
+                            <span class="card-genre">{{ m.genre }}</span>
+                            <span class="card-year">{{ m.year }}</span>
+                        </div>
+                        <div class="card-star">{{ m.star }}</div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- You Might Also Like -->
+        {% if also_like %}
+        <div class="sub-section">
+            <h2 class="section-title">
+                You Might Also Like
+            </h2>
+            <div class="movie-grid">
+                {% for m in also_like %}
+                <a href="/movie/{{ m.movie_id }}" class="movie-card">
+                    <div class="card-top">
+                        <span class="score-badge {% if m.score >= 8 %}score-green{% elif m.score >= 6 %}score-yellow{% else %}score-red{% endif %}">
+                            ⭐ {{ m.score }}
+                        </span>
+                        <span class="class-badge class-{{ m.classification | lower }}">{{ m.classification }}</span>
+                    </div>
+                    <div class="card-body">
+                        <h3 class="card-title">{{ m.name }}</h3>
+                        <div class="card-meta">
+                            <span class="card-genre">{{ m.genre }}</span>
+                            <span class="card-year">{{ m.year }}</span>
+                        </div>
+                        <div class="card-star">{{ m.star }}</div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let inFav   = {{ 'true' if in_favorites else 'false' }};
+    let inWatch = {{ 'true' if in_watchlist else 'false' }};
+    const movieId   = {{ movie.movie_id }};
+    let currentRating = {{ user_rating if user_rating else 'null' }};
+
+    function toggleFavorite(id) {
+        const ep = inFav ? '/data/favorites/remove' : '/data/favorites/add';
+        fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({movie_id: id}) })
+            .then(r => { if (r.status===401){ window.location.href='/login'; return null; } return r.json(); })
+            .then(d => {
+                if (!d) return;
+                if (d.success) {
+                    inFav = !inFav;
+                    const btn = document.getElementById('favBtn');
+                    btn.textContent = inFav ? '★ In Favorites' : '☆ Add to Favorites';
+                    btn.className   = inFav ? 'btn btn-gold active' : 'btn btn-outline';
+                }
+            });
+    }
+
+    function toggleWatchlist(id) {
+        const ep = inWatch ? '/data/watchlist/remove' : '/data/watchlist/add';
+        fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({movie_id: id}) })
+            .then(r => { if (r.status===401){ window.location.href='/login'; return null; } return r.json(); })
+            .then(d => {
+                if (!d) return;
+                if (d.success) {
+                    inWatch = !inWatch;
+                    const btn = document.getElementById('watchBtn');
+                    btn.textContent = inWatch ? '✓ In Watchlist' : '+ Add to Watchlist';
+                    btn.className   = inWatch ? 'btn btn-primary active' : 'btn btn-outline';
+                }
+            });
+    }
+
+    function rateMovie(val) {
+        fetch('/data/ratings/add', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({movie_id: movieId, rating: val})
+        })
+        .then(r => { if (r.status===401){ window.location.href='/login'; return null; } return r.json(); })
+        .then(d => {
+            if (!d || !d.success) return;
+            currentRating = val;
+            updateStars(val);
+            const fb = document.getElementById('ratingFeedback');
+            fb.innerHTML = `<span class="saved">Your rating: ${val}/10 — saved!</span>`;
+        });
+    }
+
+    function updateStars(val) {
+        document.querySelectorAll('.star-btn').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.val) <= val);
+        });
+    }
+
+    // Hover preview on stars
+    document.querySelectorAll('.star-btn').forEach(btn => {
+        btn.addEventListener('mouseenter', () => updateStars(parseInt(btn.dataset.val)));
+        btn.addEventListener('mouseleave', () => updateStars(currentRating || 0));
+    });
+</script>
+{% endblock %}

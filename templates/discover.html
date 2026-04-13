@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+{% block title %}Discover — CineMatch Data Mining{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1 class="page-title">Data Mining Showcase</h1>
+        <p class="page-subtitle">Explore how machine learning algorithms work on 7,658 movies</p>
+
+        <!-- ===================== SECTION A: K-Means ===================== -->
+        <div class="discover-section" id="section-kmeans">
+            <div class="discover-header">
+                <h2>K-Means Clustering</h2>
+                <span class="algo-pill">Unsupervised Learning</span>
+            </div>
+
+            <!-- Explainer -->
+            <div class="explainer-card">
+                <button class="explainer-toggle" onclick="toggleExplainer(this)">
+                    <span>🧠 How does K-Means work?</span>
+                    <span class="explainer-arrow">▼</span>
+                </button>
+                <div class="explainer-body">
+                    <p>K-Means automatically groups all 7,658 movies into clusters based on similarity — no manual labeling needed.</p>
+                    <p><strong>Features used:</strong> Score, Weighted Score, Vote Count (log-scaled), and Runtime.</p>
+                    <p><strong>How it works:</strong> The algorithm picks random center points, assigns every movie to its nearest center, then moves the centers to the average of their group. It repeats until the groups stabilize.</p>
+                    <p><strong>Result:</strong> Movies in the same cluster share similar patterns — like high-rated blockbusters vs. low-vote hidden gems.</p>
+                </div>
+            </div>
+
+            <div id="kmeansLoading" class="loading-state">⏳ Computing clusters...</div>
+            <div id="kmeansContent" style="display:none">
+                <div class="clusters-grid" id="clustersGrid"></div>
+
+                <!-- Scatter chart with cluster filters -->
+                <div class="chart-box">
+                    <h3 class="chart-title">Score vs Runtime by Cluster</h3>
+                    <div class="cluster-filters" id="clusterFilters"></div>
+                    <canvas id="scatterChart" height="80"></canvas>
+                </div>
+
+                <!-- K-Means Playground -->
+                <div class="kmeans-playground">
+                    <span class="playground-label">🎛️ Number of clusters:</span>
+                    <input type="range" class="playground-slider" id="kSlider" min="2" max="8" value="5"
+                        oninput="document.getElementById('kVal').textContent = this.value">
+                    <span class="playground-val" id="kVal">5</span>
+                    <button class="btn btn-primary btn-sm" onclick="rerunKmeans()">Re-run K-Means</button>
+                    <span class="playground-spinner" id="playgroundSpinner">Computing...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== SECTION B: Apriori ===================== -->
+        <div class="discover-section" id="section-apriori">
+            <div class="discover-header">
+                <h2>Association Rules (Apriori)</h2>
+                <span class="algo-pill">Pattern Mining</span>
+            </div>
+
+            <!-- Explainer -->
+            <div class="explainer-card">
+                <button class="explainer-toggle" onclick="toggleExplainer(this)">
+                    <span>🧠 How does Apriori work?</span>
+                    <span class="explainer-arrow">▼</span>
+                </button>
+                <div class="explainer-body">
+                    <p>Apriori discovers hidden relationships between movie genres by analyzing director filmographies.</p>
+                    <p><strong>How it works:</strong> Each director's movies form a "transaction." If a director often works in Action AND Adventure together, Apriori generates the rule: <strong>Action → Adventure</strong>.</p>
+                    <p><strong>Support</strong> = How common this pattern is across all directors.</p>
+                    <p><strong>Confidence</strong> = "74% of directors who make Action also make Adventure."</p>
+                    <p><strong>Lift</strong> = How much stronger the relationship is vs. random chance. Lift &gt; 1 means real correlation, not coincidence.</p>
+                </div>
+            </div>
+
+            <div id="aprioriLoading" class="loading-state">⏳ Mining association rules...</div>
+            <div id="aprioriContent" style="display:none">
+                <div class="rule-filters" id="ruleFilters">
+                    <button class="rule-filter-btn active" onclick="filterRules('all', this)">All Rules</button>
+                    <button class="rule-filter-btn" onclick="filterRules('strong', this)">Strong (Lift &gt; 1.5)</button>
+                    <button class="rule-filter-btn" onclick="filterRules('very-strong', this)">Very Strong (Lift &gt; 2)</button>
+                </div>
+                <div class="rules-cards" id="rulesCards"></div>
+                <p class="table-note">🟢 Green border = Lift &gt; 2 (very strong association) · 🔵 Blue border = Lift &gt; 1.5</p>
+            </div>
+        </div>
+
+        <!-- ===================== SECTION C: Genre Analysis ===================== -->
+        <div class="discover-section">
+            <div class="discover-header">
+                <h2>Genre Pattern Analysis</h2>
+                <span class="algo-pill">Descriptive Analytics</span>
+            </div>
+
+            <!-- Explainer -->
+            <div class="explainer-card">
+                <button class="explainer-toggle" onclick="toggleExplainer(this)">
+                    <span>🧠 What does this show?</span>
+                    <span class="explainer-arrow">▼</span>
+                </button>
+                <div class="explainer-body">
+                    <p>Frequency analysis counts how often each genre appears in the dataset and computes average ratings per genre.</p>
+                    <p><strong>Why it matters:</strong> It reveals which genres dominate the industry and which consistently produce higher-quality films — useful for understanding audience preferences at scale.</p>
+                </div>
+            </div>
+
+            <div class="insight-cards">
+                <div class="insight-card">
+                    <div class="insight-icon">🏆</div>
+                    <div class="insight-label">Most Popular Genre</div>
+                    <div class="insight-value">{{ most_popular_genre }}</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-icon">⭐</div>
+                    <div class="insight-label">Highest Rated Genre</div>
+                    <div class="insight-value">{{ highest_rated_genre }}</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-icon">🗳️</div>
+                    <div class="insight-label">Most Voted Genre</div>
+                    <div class="insight-value">{{ most_votes_genre }}</div>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-box half">
+                    <h3 class="chart-title">Movie Count by Genre
+                        <span style="float:right;display:flex;gap:0.4rem;">
+                            <button class="rule-filter-btn active" id="sortCountBtn" onclick="sortChart('count')" style="font-size:0.7rem;padding:0.2rem 0.5rem;">By Count</button>
+                            <button class="rule-filter-btn" id="sortAlphaBtn" onclick="sortChart('alpha')" style="font-size:0.7rem;padding:0.2rem 0.5rem;">A–Z</button>
+                        </span>
+                    </h3>
+                    <canvas id="genreCountChart" height="180"></canvas>
+                </div>
+                <div class="chart-box half">
+                    <h3 class="chart-title">Average Score by Genre</h3>
+                    <div style="margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--text-muted);">
+                        Min avg score:
+                        <input type="range" min="0" max="9" step="0.5" value="0" id="scoreThreshold"
+                            oninput="filterScoreChart(this.value)"
+                            style="width:100px;accent-color:var(--blue);">
+                        <span id="thresholdVal">0</span>
+                    </div>
+                    <canvas id="genreScoreChart" height="180"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== SECTION D: Classification ===================== -->
+        <div class="discover-section">
+            <div class="discover-header">
+                <h2>Classification Distribution</h2>
+                <span class="algo-pill">Statistical Analysis</span>
+            </div>
+
+            <!-- Explainer -->
+            <div class="explainer-card">
+                <button class="explainer-toggle" onclick="toggleExplainer(this)">
+                    <span>🧠 How are movies classified?</span>
+                    <span class="explainer-arrow">▼</span>
+                </button>
+                <div class="explainer-body">
+                    <p>Movies are classified into 3 categories based on their IMDb score:</p>
+                    <p><strong>Excellent</strong> = Score ≥ 8.0 — top-tier films with outstanding audience reception.</p>
+                    <p><strong>Good</strong> = Score 6.0–7.9 — solid films that most audiences enjoy.</p>
+                    <p><strong>Poor</strong> = Score &lt; 6.0 — films that received mixed or negative reception.</p>
+                    <p>This classification is a supervised learning concept where we define rules to categorize data into meaningful groups.</p>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-box third">
+                    <h3 class="chart-title">Classification Breakdown</h3>
+                    <canvas id="classDonutChart" height="200"></canvas>
+                </div>
+                <div class="chart-box two-thirds">
+                    <h3 class="chart-title">Score Distribution</h3>
+                    <canvas id="scoreHistChart" height="200"></canvas>
+                </div>
+            </div>
+
+            <!-- Classification stat cards with browse links -->
+            <div class="class-stat-cards">
+                {% set total = classification_counts.values() | sum %}
+                {% for cls, cnt in classification_counts.items() %}
+                <div class="class-stat-card">
+                    <div class="class-stat-num" style="color:{% if cls == 'Excellent' %}var(--green){% elif cls == 'Good' %}var(--gold){% else %}var(--red){% endif %}">
+                        {{ "{:,}".format(cnt) }}
+                    </div>
+                    <div class="class-stat-label">
+                        <span class="class-badge class-{{ cls | lower }}">{{ cls }}</span>
+                    </div>
+                    <a href="/browse?classification={{ cls }}" class="btn btn-sm btn-outline mt-2">Browse →</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Cluster Explorer Modal -->
+<div class="modal-overlay" id="clusterModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-title" id="modalTitle">Cluster Movies</span>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div id="modalBody"></div>
+        <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:center;" id="modalPagination"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const genreCountsData = {{ genre_counts | tojson }};
+const genreAvgScoreData = {{ genre_avg_score | tojson }};
+const classData = {{ classification_counts | tojson }};
+
+// Warm cinema colors for clusters
+const CLUSTER_COLORS = ['#C8873A','#8B6914','#2D6A4F','#8B3A2A','#6B4C7A','#5A7A8B','#7A6B2A','#8B4580'];
+
+let scatterChartInstance = null;
+let allClusters = [];
+let allRules = [];
+let genreCountChartInstance = null;
+let genreScoreChartInstance = null;
+
+// ============================
+// EXPLAINER TOGGLE
+// ============================
+function toggleExplainer(btn) {
+    const body = btn.nextElementSibling;
+    const arrow = btn.querySelector('.explainer-arrow');
+    body.classList.toggle('open');
+    arrow.classList.toggle('open');
+}
+
+// ============================
+// K-MEANS
+// ============================
+fetch('/data/clusters')
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('kmeansLoading').style.display = 'none';
+        document.getElementById('kmeansContent').style.display = 'block';
+        allClusters = data.clusters;
+        renderClusters(data.clusters);
+        renderScatter(data.clusters, -1);
+        buildClusterFilters(data.clusters);
+    });
+
+function renderClusters(clusters) {
+    document.getElementById('clustersGrid').innerHTML = clusters.map((c, i) => `
+        <div class="cluster-card" style="border-top-color:${CLUSTER_COLORS[i % CLUSTER_COLORS.length]}">
+            <div class="cluster-header">
+                <span class="cluster-label" style="color:${CLUSTER_COLORS[i % CLUSTER_COLORS.length]}">${c.label}</span>
+                <span class="cluster-count">${c.count.toLocaleString()} movies</span>
+            </div>
+            <div class="cluster-smart-label">${c.smart_label || ''}</div>
+            <div class="cluster-score">Avg Score: <strong>${c.avg_score}</strong> · Avg Runtime: ${c.avg_runtime} min</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem;">
+                Top genres: ${(c.top_genres || []).join(', ')}
+            </div>
+            <div class="cluster-top">
+                ${c.top_movies.map(m => `
+                    <a href="/movie/${m.movie_id}" class="cluster-movie">
+                        <span class="cm-name">${m.name}</span>
+                        <span class="cm-score ${m.score >= 8 ? 'score-green' : m.score >= 6 ? 'score-yellow' : 'score-red'}">⭐${m.score}</span>
+                    </a>`).join('')}
+            </div>
+            <button class="explore-cluster-btn" onclick="openClusterModal(${c.id}, '${c.label}')">
+                Explore all ${c.count} movies →
+            </button>
+        </div>
+    `).join('');
+}
+
+function buildClusterFilters(clusters) {
+    const el = document.getElementById('clusterFilters');
+    el.innerHTML = `<button class="cluster-filter-btn active" onclick="filterScatter(-1, this)">All</button>` +
+        clusters.map((c, i) => `
+            <button class="cluster-filter-btn" style="border-color:${CLUSTER_COLORS[i % CLUSTER_COLORS.length]}"
+                onclick="filterScatter(${i}, this)">${c.label}</button>
+        `).join('');
+}
+
+function filterScatter(clusterIdx, btn) {
+    document.querySelectorAll('.cluster-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderScatter(allClusters, clusterIdx);
+}
+
+function renderScatter(clusters, highlightIdx) {
+    if (scatterChartInstance) scatterChartInstance.destroy();
+    const datasets = clusters.map((c, i) => ({
+        label: c.label,
+        data: c.scatter_data.map(p => ({x: p.x, y: p.y, name: p.name})),
+        backgroundColor: highlightIdx === -1 || highlightIdx === i
+            ? CLUSTER_COLORS[i % CLUSTER_COLORS.length]
+            : 'rgba(200,200,200,0.2)',
+        pointRadius: highlightIdx === -1 || highlightIdx === i ? 5 : 3,
+    }));
+    scatterChartInstance = new Chart(document.getElementById('scatterChart'), {
+        type: 'scatter',
+        data: { datasets },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: '#6B5344', font: { size: 12 } } },
+                tooltip: { callbacks: { label: ctx => `${ctx.raw.name} (Score: ${ctx.raw.x}, Runtime: ${ctx.raw.y}min)` } }
+            },
+            scales: {
+                x: { title: { display: true, text: 'Score', color: '#9E8472' }, ticks: { color: '#9E8472' }, grid: { color: 'rgba(139,99,58,0.1)' } },
+                y: { title: { display: true, text: 'Runtime (min)', color: '#9E8472' }, ticks: { color: '#9E8472' }, grid: { color: 'rgba(139,99,58,0.1)' } }
+            }
+        }
+    });
+}
+
+function rerunKmeans() {
+    const k = document.getElementById('kSlider').value;
+    const spinner = document.getElementById('playgroundSpinner');
+    spinner.style.display = 'inline';
+    fetch('/data/clusters/rerun', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({k: parseInt(k)})
+    })
+    .then(r => r.json())
+    .then(data => {
+        spinner.style.display = 'none';
+        allClusters = data.clusters;
+        renderClusters(data.clusters);
+        renderScatter(data.clusters, -1);
+        buildClusterFilters(data.clusters);
+    });
+}
+
+// ============================
+// CLUSTER MODAL
+// ============================
+let modalPage = 1;
+let modalClusterId = null;
+let modalClusterLabel = '';
+
+function openClusterModal(clusterId, label) {
+    modalClusterId = clusterId;
+    modalClusterLabel = label;
+    modalPage = 1;
+    document.getElementById('modalTitle').textContent = label + ' — Movies';
+    document.getElementById('clusterModal').classList.add('open');
+    loadModalPage(1);
+}
+
+function closeModal() {
+    document.getElementById('clusterModal').classList.remove('open');
+}
+
+document.getElementById('clusterModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function loadModalPage(page) {
+    document.getElementById('modalBody').innerHTML = '<div class="loading-state">Loading...</div>';
+    fetch(`/data/clusters/${modalClusterId}/movies?page=${page}`)
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('modalBody').innerHTML = d.movies.map(m => `
+                <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid var(--border);">
+                    <span class="score-badge ${m.score >= 8 ? 'score-green' : m.score >= 6 ? 'score-yellow' : 'score-red'}">⭐${m.score}</span>
+                    <div style="flex:1;">
+                        <a href="/movie/${m.movie_id}" style="font-weight:700;color:var(--text);font-size:0.9rem;">${m.name}</a>
+                        <div style="font-size:0.75rem;color:var(--text-muted);">${m.genre} · ${m.year} · ${m.director}</div>
+                    </div>
+                    <span class="class-badge class-${m.classification.toLowerCase()}">${m.classification}</span>
+                </div>
+            `).join('');
+            // Pagination
+            const pages = d.total_pages;
+            let pag = '';
+            for (let i = 1; i <= pages; i++) {
+                pag += `<button class="page-btn ${i === page ? 'active' : ''}" onclick="loadModalPage(${i})">${i}</button>`;
+            }
+            document.getElementById('modalPagination').innerHTML = pag;
+        });
+}
+
+// ============================
+// APRIORI RULES
+// ============================
+fetch('/data/rules')
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('aprioriLoading').style.display = 'none';
+        document.getElementById('aprioriContent').style.display = 'block';
+        allRules = data.rules || [];
+        renderRules(allRules);
+    });
+
+function renderRules(rules) {
+    if (!rules.length) {
+        document.getElementById('rulesCards').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:1rem;">No rules found with current parameters.</p>';
+        return;
+    }
+    document.getElementById('rulesCards').innerHTML = rules.map(r => {
+        const liftClass = r.lift >= 2 ? 'lift-strong' : r.lift >= 1.5 ? 'lift-medium' : 'lift-normal';
+        const liftBadge = r.lift >= 2 ? `<span class="lift-badge high">Lift ${r.lift} ✓</span>` :
+                          r.lift >= 1.5 ? `<span class="lift-badge medium">Lift ${r.lift}</span>` : '';
+        return `
+        <div class="rule-card ${liftClass}">
+            <div class="rule-title">
+                <span class="rule-genre">${r.antecedent}</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-genre">${r.consequent}</span>
+                ${liftBadge}
+            </div>
+            <div class="rule-desc">Directors who work in ${r.antecedent} often also work in ${r.consequent}</div>
+            <div class="rule-stats">
+                <span class="rule-stat">Support: <strong>${r.support}</strong></span>
+                <span class="rule-stat">Confidence: <strong>${r.confidence}</strong></span>
+                <a href="/browse?genre=${r.consequent}" style="font-size:0.78rem;color:var(--blue);font-weight:600;">Explore ${r.consequent} movies →</a>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function filterRules(level, btn) {
+    document.querySelectorAll('.rule-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    let filtered = allRules;
+    if (level === 'strong') filtered = allRules.filter(r => r.lift >= 1.5);
+    if (level === 'very-strong') filtered = allRules.filter(r => r.lift >= 2);
+    renderRules(filtered);
+}
+
+// ============================
+// GENRE CHARTS
+// ============================
+let rawGenreLabels = Object.keys(genreCountsData).sort((a,b) => genreCountsData[b] - genreCountsData[a]);
+
+function buildCountChart(labels) {
+    if (genreCountChartInstance) genreCountChartInstance.destroy();
+    genreCountChartInstance = new Chart(document.getElementById('genreCountChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: labels.map(g => genreCountsData[g]),
+                backgroundColor: 'rgba(200,135,58,0.7)',
+                borderColor: '#C8873A',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            onClick: (e, els) => {
+                if (els.length) {
+                    const genre = labels[els[0].index];
+                    window.location.href = '/browse?genre=' + encodeURIComponent(genre);
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#9E8472', maxRotation: 45 }, grid: { color: 'rgba(139,99,58,0.08)' } },
+                y: { ticks: { color: '#9E8472' }, grid: { color: 'rgba(139,99,58,0.08)' } }
+            }
+        }
+    });
+}
+
+buildCountChart(rawGenreLabels);
+
+function sortChart(type) {
+    document.getElementById('sortCountBtn').classList.toggle('active', type === 'count');
+    document.getElementById('sortAlphaBtn').classList.toggle('active', type === 'alpha');
+    const sorted = type === 'alpha'
+        ? [...rawGenreLabels].sort()
+        : [...rawGenreLabels].sort((a,b) => genreCountsData[b] - genreCountsData[a]);
+    buildCountChart(sorted);
+}
+
+let allScoreLabels = Object.keys(genreAvgScoreData).sort((a,b) => genreAvgScoreData[b] - genreAvgScoreData[a]);
+
+function buildScoreChart(labels) {
+    if (genreScoreChartInstance) genreScoreChartInstance.destroy();
+    genreScoreChartInstance = new Chart(document.getElementById('genreScoreChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: labels.map(g => genreAvgScoreData[g]),
+                backgroundColor: 'rgba(139,105,20,0.7)',
+                borderColor: '#8B6914',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#9E8472', maxRotation: 45 }, grid: { color: 'rgba(139,99,58,0.08)' } },
+                y: { min: 0, max: 10, ticks: { color: '#9E8472' }, grid: { color: 'rgba(139,99,58,0.08)' } }
+            }
+        }
+    });
+}
+
+buildScoreChart(allScoreLabels);
+
+function filterScoreChart(threshold) {
+    document.getElementById('thresholdVal').textContent = threshold;
+    const filtered = allScoreLabels.filter(g => genreAvgScoreData[g] >= parseFloat(threshold));
+    buildScoreChart(filtered);
+}
+
+// ============================
+// CLASSIFICATION CHARTS
+// ============================
+const classColors = { Excellent: '#2D6A4F', Good: '#8B6914', Poor: '#8B3A2A' };
+
+new Chart(document.getElementById('classDonutChart'), {
+    type: 'doughnut',
+    data: {
+        labels: Object.keys(classData),
+        datasets: [{
+            data: Object.values(classData),
+            backgroundColor: Object.keys(classData).map(k => classColors[k] || '#9E8472'),
+            borderWidth: 2,
+            borderColor: '#FFFCF7'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#6B5344', font: { size: 13 } } } }
+    }
+});
+
+// Score histogram
+const histBuckets = ['1-2','2-3','3-4','4-5','5-6','6-7','7-8','8-9','9-10'];
+const histCounts  = {{ score_hist | tojson }};
+new Chart(document.getElementById('scoreHistChart'), {
+    type: 'bar',
+    data: {
+        labels: histBuckets,
+        datasets: [{
+            label: 'Movies',
+            data: histCounts,
+            backgroundColor: histBuckets.map((_, i) => {
+                const mid = i + 1.5;
+                return mid >= 8 ? 'rgba(45,106,79,0.75)' : mid >= 6 ? 'rgba(139,105,20,0.75)' : 'rgba(139,58,42,0.75)';
+            }),
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        onClick: (e, els) => {
+            if (!els.length) return;
+            const ranges = [[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10]];
+            const [mn, mx] = ranges[els[0].index];
+            window.location.href = `/browse?score_min=${mn}&score_max=${mx}`;
+        },
+        scales: {
+            x: { ticks: { color: '#9E8472' }, grid: { color: 'rgba(139,99,58,0.08)' } },
+            y: { ticks: { color: '#9E8472' }, grid: { color: 'rgba(139,99,58,0.08)' } }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}CineMatch — Smart Movie Recommendations{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+        <h1 class="hero-title">Discover Your Next<br><span class="highlight">Favorite Movie</span></h1>
+        
+        <div class="search-bar">
+            <input type="text" id="heroSearch" placeholder="Search movies, actors, directors..." autocomplete="off">
+            <button onclick="heroSearchGo()" class="btn btn-primary">Search</button>
+            <div id="heroSearchResults" class="search-dropdown"></div>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Cards -->
+<section class="section">
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ "{:,}".format(total_movies) }}</div>
+                <div class="stat-label">Total Movies</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ genres_count }}</div>
+                <div class="stat-label">Unique Genres</div>
+            </div>
+            <div class="stat-card">
+                <a href="/movie/{{ top_movie.movie_id }}" class="stat-link">
+                    <div class="stat-number">⭐ {{ top_movie.score }}</div>
+                    <div class="stat-label">Top Rated: {{ top_movie.name[:30] }}{% if top_movie.name|length > 30 %}...{% endif %}</div>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Genre Chips -->
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">Browse by Genre</h2>
+        <div class="genre-chips">
+            {% for genre in genres %}
+            <a href="/browse?genre={{ genre | urlencode }}" class="genre-chip">{{ genre }}</a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Trending Section -->
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">🔥 Trending Now</h2>
+        <p class="section-sub">Top movies by weighted score</p>
+        <div class="movie-grid">
+            {% for movie in trending %}
+            <a href="/movie/{{ movie.movie_id }}" class="movie-card">
+                <div class="card-top">
+                    <span class="score-badge {% if movie.score >= 8 %}score-green{% elif movie.score >= 6 %}score-yellow{% else %}score-red{% endif %}">
+                        ⭐ {{ movie.score }}
+                    </span>
+                    <span class="class-badge class-{{ movie.classification | lower }}">{{ movie.classification }}</span>
+                </div>
+                <div class="card-body">
+                    <h3 class="card-title">{{ movie.name }}</h3>
+                    <div class="card-meta">
+                        <span class="card-genre">{{ movie.genre }}</span>
+                        <span class="card-year">{{ movie.year }}</span>
+                    </div>
+                    <div class="card-star">{{ movie.star }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        <div class="text-center mt-4">
+            <a href="/browse" class="btn btn-outline">Browse All Movies →</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const heroInput = document.getElementById('heroSearch');
+const heroResults = document.getElementById('heroSearchResults');
+let searchTimer;
+
+heroInput.addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    if (q.length < 2) { heroResults.innerHTML = ''; heroResults.style.display = 'none'; return; }
+    searchTimer = setTimeout(() => {
+        fetch('/data/search?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                if (!data.results.length) { heroResults.style.display = 'none'; return; }
+                heroResults.innerHTML = data.results.map(m =>
+                    `<a href="/movie/${m.movie_id}" class="search-result-item">
+                        <span class="sr-name">${m.name}</span>
+                        <span class="sr-meta">${m.genre} &middot; ${m.year} &middot; ⭐${m.score}</span>
+                    </a>`
+                ).join('');
+                heroResults.style.display = 'block';
+            });
+    }, 250);
+});
+
+document.addEventListener('click', function(e) {
+    if (!heroInput.contains(e.target) && !heroResults.contains(e.target)) {
+        heroResults.style.display = 'none';
+    }
+});
+
+function heroSearchGo() {
+    const q = heroInput.value.trim();
+    if (q) window.location.href = '/browse?search=' + encodeURIComponent(q);
+}
+
+heroInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') heroSearchGo();
+});
+</script>
+{% endblock %}

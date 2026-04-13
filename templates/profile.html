@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Profile — CineMatch{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1 class="page-title">My Profile</h1>
+        <div id="profileContent">
+            <div class="profile-header">
+                <div class="profile-avatar">👤</div>
+                <div class="profile-name-wrap">
+                    <h2 class="profile-username">{{ username }}</h2>
+                    <a href="/logout" class="btn-link">Logout</a>
+                </div>
+            </div>
+
+            <div class="profile-stats" id="profileStats"></div>
+
+            <div class="profile-section" id="tasteSection" style="display:none">
+                <div class="profile-section-title">🎭 Your Taste Analysis</div>
+                <div class="taste-cards" id="tasteCards"></div>
+            </div>
+
+            <div class="profile-section" id="chartSection" style="display:none">
+                <div class="profile-section-title">🍩 Your Genre Taste</div>
+                <div style="max-width:400px; margin:0 auto;">
+                    <canvas id="tasteChart" height="300"></canvas>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <div class="profile-section-title">🎬 Recommended for You</div>
+                <button class="btn btn-primary" id="recBtn" onclick="loadPersonalRecs()">Get My Recommendations</button>
+                <div id="personalRecs" style="margin-top:1.25rem;"></div>
+            </div>
+
+            <div class="profile-section" id="knnSection" style="display:none">
+                <div class="profile-section-title">🤖 Based on Your Ratings</div>
+                <div id="knnRecs"></div>
+            </div>
+
+            <div class="profile-section" id="ratingsSection" style="display:none">
+                <div class="profile-section-title">⭐ Your Ratings</div>
+                <p id="ratingsAvg" style="font-size:0.875rem;color:var(--text-muted);margin-bottom:1rem;"></p>
+                <div style="overflow-x:auto;">
+                    <table class="ratings-table">
+                        <thead><tr><th>Movie</th><th>Genre</th><th>IMDb</th><th>Your Rating</th><th>Difference</th></tr></thead>
+                        <tbody id="ratingsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <div class="profile-tabs">
+                    <button class="tab-btn active" onclick="showTab('favorites', this)">★ Favorites</button>
+                    <button class="tab-btn" onclick="showTab('watchlist', this)">📋 Watchlist</button>
+                </div>
+                <div id="favoritesTab" class="tab-content active">
+                    <div class="movie-grid" id="favoritesList"></div>
+                </div>
+                <div id="watchlistTab" class="tab-content">
+                    <div class="movie-grid" id="watchlistList"></div>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <div class="profile-section-title">🔍 Explore Data Insights</div>
+                <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;">
+                    Curious how the recommendations work? Explore the patterns and analysis behind CineMatch.
+                </p>
+                <a href="/discover" class="btn btn-outline">View Data Insights →</a>
+            </div>
+        </div>
+    </div>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const currentUsername = '{{ username }}';
+let tasteChartInstance = null;
+const GENRE_COLORS = {'Action':'#B8752A','Drama':'#7A5C10','Crime':'#7A3020','Comedy':'#245A40','Horror':'#5C4B7A','Biography':'#3A5A6B','Adventure':'#6B5C1A','Animation':'#6B3060','Sci-Fi':'#1A4A6B','Thriller':'#5C1A1A','Mystery':'#3A5C1A','Family':'#1A5C4A'};
+function genreColor(g) { return GENRE_COLORS[g] || '#9E8472'; }
+
+window.addEventListener('DOMContentLoaded', () => { loadProfile(); loadTaste(); loadRatings(); loadKNN(); });
+
+function loadProfile() {
+    fetch('/data/profile/' + encodeURIComponent(currentUsername)).then(r => r.json()).then(data => {
+        document.getElementById('profileStats').innerHTML = `
+            <div class="pstat"><div class="pstat-num">${data.favorites.length}</div><div class="pstat-label">Favorites</div></div>
+            <div class="pstat"><div class="pstat-num">${data.watchlist.length}</div><div class="pstat-label">Watchlist</div></div>
+            <div class="pstat"><div class="pstat-num">${data.fav_genre || '–'}</div><div class="pstat-label">Top Genre</div></div>
+            <div class="pstat"><div class="pstat-num">${data.avg_fav_score || '–'}</div><div class="pstat-label">Avg Score</div></div>`;
+        renderMovieGrid('favoritesList', data.favorites, 'favorites');
+        renderMovieGrid('watchlistList', data.watchlist, 'watchlist');
+    });
+}
+
+function loadTaste() {
+    fetch('/data/profile/taste/' + encodeURIComponent(currentUsername)).then(r => r.json()).then(d => {
+        if (!d.total_favorites) return;
+        document.getElementById('tasteSection').style.display = 'block';
+        document.getElementById('tasteCards').innerHTML = `
+            <div class="taste-card"><div class="taste-icon">🎭</div><div class="taste-label">Favorite Genre</div><div class="taste-value">${d.top_genre || '–'}</div></div>
+            <div class="taste-card"><div class="taste-icon">⭐</div><div class="taste-label">Avg Score</div><div class="taste-value">${d.avg_score || '–'}</div></div>
+            <div class="taste-card"><div class="taste-icon">🎬</div><div class="taste-label">Fav Director</div><div class="taste-value">${d.top_director || '–'}</div></div>
+            <div class="taste-card"><div class="taste-icon">🎞️</div><div class="taste-label">Total Favorites</div><div class="taste-value">${d.total_favorites}</div></div>`;
+    });
+    fetch('/data/profile/genres/' + encodeURIComponent(currentUsername)).then(r => r.json()).then(d => {
+        if (!d.labels || d.labels.length < 2) return;
+        document.getElementById('chartSection').style.display = 'block';
+        if (tasteChartInstance) tasteChartInstance.destroy();
+        tasteChartInstance = new Chart(document.getElementById('tasteChart'), {
+            type: 'doughnut',
+            data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: d.labels.map(g => genreColor(g)), borderWidth: 2, borderColor: '#F8F4EE' }] },
+            options: { responsive: true, plugins: { legend: { labels: { color: '#5C4433', font: { size: 13 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw}%` } } } }
+        });
+    });
+}
+
+function loadPersonalRecs() {
+    const btn = document.getElementById('recBtn');
+    btn.textContent = 'Loading...'; btn.disabled = true;
+    fetch('/data/profile/recommend', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username: currentUsername}) })
+    .then(r => r.json()).then(d => {
+        btn.textContent = 'Refresh Recommendations'; btn.disabled = false;
+        const el = document.getElementById('personalRecs');
+        if (d.message || !d.recommendations.length) { el.innerHTML = `<p style="color:var(--text-muted);font-style:italic;">${d.message || 'Add more favorites to get recommendations!'}</p>`; return; }
+        el.innerHTML = `<div class="rec-list">${d.recommendations.map(m => `
+            <a href="/movie/${m.movie_id}" class="rec-card">
+                <div class="rec-card-top">
+                    <span class="score-badge ${m.score >= 8 ? 'score-green' : m.score >= 6 ? 'score-yellow' : 'score-red'}">⭐ ${m.score}</span>
+                    <span class="class-badge class-${m.classification.toLowerCase()}">${m.classification}</span>
+                </div>
+                <div class="rec-card-body"><div class="rec-name">${m.name}</div><div class="rec-meta">${m.genre} · ${m.year} · ${m.director}</div></div>
+            </a>`).join('')}</div>`;
+    });
+}
+
+function loadRatings() {
+    fetch('/data/ratings/' + encodeURIComponent(currentUsername)).then(r => r.json()).then(d => {
+        if (!d.ratings || !d.ratings.length) return;
+        document.getElementById('ratingsSection').style.display = 'block';
+        document.getElementById('ratingsAvg').textContent = `Your average rating: ${d.avg_rating}/10 across ${d.ratings.length} movies`;
+        document.getElementById('ratingsBody').innerHTML = d.ratings.map(m => `
+            <tr>
+                <td><a href="/movie/${m.movie_id}" style="color:var(--blue);font-weight:600;">${m.name}</a></td>
+                <td>${m.genre}</td><td>${m.score}</td>
+                <td><strong style="color:var(--navy)">${m.user_rating}</strong></td>
+                <td class="${m.diff > 0 ? 'diff-pos' : m.diff < 0 ? 'diff-neg' : ''}">${m.diff > 0 ? '+' : ''}${m.diff}</td>
+            </tr>`).join('');
+    });
+}
+
+function loadKNN() {
+    fetch('/data/profile/knn-recommend', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username: currentUsername}) })
+    .then(r => r.json()).then(d => {
+        if (!d.recommendations || !d.recommendations.length) return;
+        document.getElementById('knnSection').style.display = 'block';
+        document.getElementById('knnRecs').innerHTML = `
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem;">${d.based_on}</p>
+            <div class="rec-list">${d.recommendations.map(m => `
+                <a href="/movie/${m.movie_id}" class="rec-card">
+                    <div class="rec-card-top">
+                        <span class="score-badge ${m.score >= 8 ? 'score-green' : m.score >= 6 ? 'score-yellow' : 'score-red'}">⭐ ${m.score}</span>
+                        <span class="class-badge class-${m.classification.toLowerCase()}">${m.classification}</span>
+                    </div>
+                    <div class="rec-card-body"><div class="rec-name">${m.name}</div><div class="rec-meta">${m.genre} · ${m.year}</div></div>
+                </a>`).join('')}</div>`;
+    });
+}
+
+function renderMovieGrid(containerId, movies, listType) {
+    const el = document.getElementById(containerId);
+    if (!movies.length) { el.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No ${listType} yet. <a href="/browse" class="btn-link">Browse movies</a></div>`; return; }
+    el.innerHTML = movies.map(m => `
+        <div class="movie-card">
+            <div class="card-top">
+                <span class="score-badge ${m.score >= 8 ? 'score-green' : m.score >= 6 ? 'score-yellow' : 'score-red'}">⭐ ${m.score}</span>
+                <span class="class-badge class-${m.classification.toLowerCase()}">${m.classification}</span>
+            </div>
+            <div class="card-body">
+                <h3 class="card-title"><a href="/movie/${m.movie_id}">${m.name}</a></h3>
+                <div class="card-meta"><span class="card-genre">${m.genre}</span><span class="card-year">${m.year}</span></div>
+                <div class="card-star">${m.star}</div>
+                <button onclick="removeFromList('${listType}', ${m.movie_id})" class="btn btn-sm btn-danger mt-2">Remove</button>
+            </div>
+        </div>`).join('');
+}
+
+function removeFromList(listType, movieId) {
+    const ep = listType === 'favorites' ? '/data/favorites/remove' : '/data/watchlist/remove';
+    fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({movie_id: movieId, username: currentUsername}) }).then(r => r.json()).then(() => loadProfile());
+}
+
+function showTab(tab, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tab + 'Tab').classList.add('active');
+    btn.classList.add('active');
+}
+</script>
+{% endblock %}
